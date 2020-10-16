@@ -122,7 +122,8 @@ class LargeFileOneDriverUploader(OneDriverUploader):
                     "Content-Length":f"{send_bytes}",
                     "Content-Range": send_range
                 }
-                print(f"Sending {send_bytes} bytes: {send_range}")
+                done_percentage = round(100 * chunk_start / total_size, 2)
+                print(f"{done_percentage}% done. Sending {send_bytes} bytes: {send_range}")
                 sys.stdout.flush()
                 r = requests.put(upload_url, data=data, headers=headers)
 
