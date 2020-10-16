@@ -5,7 +5,22 @@ import requests
 from abc import ABC, abstractmethod
 from app_context import AppContext
 
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+
 class OneDriveUploader(ABC):
+
+    def __init__(self):
+        retry_strategy = Retry(
+            total=5,
+            backoff_factor=2.0,
+            status_forcelist=[429, 500, 502, 503, 504]
+        )
+        adapter = TimeoutHTTPAdapter(max_retries=retry_strategy)
+        self.http = requests.Session()
+        self.http.mount("https://", adapter)
+        self.http.mount("http://", adapter)
+
 
     @abstractmethod
     def upload(self, local_file, ctx: AppContext):
@@ -40,7 +55,7 @@ class SimpleOneDriveUploader(OneDriveUploader):
             url = f"{ctx.endpoint}/drive/special/approot:/{os.path.basename(f.name)}:/content"
             try:
                 start_time = time.time()
-                r = requests.put(url, data=f, headers=headers)
+                r = self.http.put(url, data=f, headers=headers)
                 self.dump_request_result(r)
                 print(f"{f.name} was uploaded successfully in {time.time() - start_time} seconds!")
             except:
@@ -62,7 +77,7 @@ class LargeFileOneDriveUploader(OneDriveUploader):
             start_time = time.time()
             print(f"Creating upload session for {f.name}...")
             url = f"{ctx.endpoint}/drive/special/approot:/{os.path.basename(f.name)}:/createUploadSession"
-            r = requests.post(url, headers=headers)
+            r = self.http.post(url, headers=headers)
             self.dump_request_result(r)
             upload_url = r.json()["uploadUrl"]
 
@@ -86,7 +101,7 @@ class LargeFileOneDriveUploader(OneDriveUploader):
                     done_percentage = round(100 * chunk_start / total_size, 2)
                     print(f"{done_percentage}% done. Sending {send_bytes} bytes: {send_range}")
                     sys.stdout.flush()
-                    r = requests.put(upload_url, data=data, headers=headers)
+                    r = self.http.put(upload_url, data=data, headers=headers)
 
                     if r.status_code in [200, 201]:
                         print(f"{f.name} was uploaded successfully in {time.time() - start_time} seconds!")
@@ -99,6 +114,23 @@ class LargeFileOneDriveUploader(OneDriveUploader):
                     chunk_start = chunk_end + 1
             except:
                 print("An error occurred, terminating upload session")
-                r = requests.delete(upload_url)
+                r = http.delete(upload_url)
                 self.dump_request_result(r)
                 raise
+
+class TimeoutHTTPAdapter(HTTPAdapter):
+
+    DEFAULT_TIMEOUT = 60
+
+    def __init__(self, *args, **kwargs):
+        self.timeout = self.DEFAULT_TIMEOUT
+        if "timeout" in kwargs:
+            self.timeout = kwargs["timeout"]
+            del kwargs["timeout"]
+        super().__init__(*args, **kwargs)
+
+    def send(self, request, **kwargs):
+        timeout = kwargs.get("timeout")
+        if timeout is None:
+            kwargs["timeout"] = self.timeout
+        return super().send(request, **kwargs)
