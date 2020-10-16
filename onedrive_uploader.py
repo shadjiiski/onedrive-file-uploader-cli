@@ -77,7 +77,7 @@ class SimpleOneDriverUploader(OneDriverUploader):
         with open(local_file, mode='rb') as f:
             print(f"Starting upload for {f.name}...")
             sys.stdout.flush()
-            url = f"{ctx.endpoint}/drive/special/approot:/{f.name}:/content"
+            url = f"{ctx.endpoint}/drive/special/approot:/{os.path.basename(f.name)}:/content"
             try:
                 start_time = time.time()
                 r = requests.put(url, data=f, headers=headers)
@@ -101,7 +101,7 @@ class LargeFileOneDriverUploader(OneDriverUploader):
         with open(local_file, mode='rb') as f:
             start_time = time.time()
             print(f"Creating upload session for {f.name}...")
-            url = f"{ctx.endpoint}/drive/special/approot:/{f.name}:/createUploadSession"
+            url = f"{ctx.endpoint}/drive/special/approot:/{os.path.basename(f.name)}:/createUploadSession"
             r = requests.post(url, headers=headers)
             self.dump_request_result(r)
             upload_url = r.json()["uploadUrl"]
