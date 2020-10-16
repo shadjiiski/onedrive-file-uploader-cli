@@ -10,21 +10,34 @@ import msal
 
 from abc import ABC, abstractmethod
 
+APP_PROPERTIES_FILE = "app-properties.json"
 AUTHORITY_FORMAT = "https://login.microsoftonline.com/{}"
 
 DEFAULT_TENANT = "common"
 DEFAULT_ENDPOINT = "https://graph.microsoft.com/v1.0/me"
 DEFAULT_LOCATION = "/test-uploader-app"
-DEFAULT_BLOCKS = 1
+DEFAULT_BLOCKS = 100
 
 class AppContext:
-    # https://docs.microsoft.com/en-us/onedrive/developer/rest-api/getting-started/app-registration?view=odsp-graph-online
-    client_id = "enter-client-id-here"
-    scope = ["Files.ReadWrite"] # Files.ReadWrite.AppFolder not supported on One Drive Bussiness...
-    endpoint = "https://graph.microsoft.com/v1.0/me"
-    authority = AUTHORITY_FORMAT.format(DEFAULT_TENANT)
-    blocks = DEFAULT_BLOCKS
-    access_token = None
+
+    def __init__(self):
+        self.scope = ["Files.ReadWrite"] # Files.ReadWrite.AppFolder not supported on One Drive Bussiness...
+        self.endpoint = "https://graph.microsoft.com/v1.0/me"
+        self.authority = AUTHORITY_FORMAT.format(DEFAULT_TENANT)
+        self.blocks = DEFAULT_BLOCKS
+        self.access_token = None
+
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        props_abs_file = os.path.join(script_dir, APP_PROPERTIES_FILE)
+        if os.path.isfile(props_abs_file):
+            with open(props_abs_file) as f:
+                props = json.loads(f.read())
+                # https://docs.microsoft.com/en-us/onedrive/developer/rest-api/getting-started/app-registration?view=odsp-graph-online
+                if "client_id" in props:
+                    self.client_id = props["client_id"]
+
+                if "tenant_id" in props:
+                    self.authority = AUTHORITY_FORMAT.format(props["tenant_id"])
 
 class OneDriverUploader(ABC):
 
@@ -133,10 +146,8 @@ class ApplicationEntrypoint:
     def user_input(self):
         parser = argparse.ArgumentParser()
         parser.add_argument("-t", "--tenant",
-                default=DEFAULT_TENANT,
                 help="MS Graph tenant")
         parser.add_argument("-e", "--endpoint",
-                default=DEFAULT_ENDPOINT,
                 help="Endpoint base URI for sending API requests")
         parser.add_argument("--file-blocks",
                 type=int,
@@ -179,8 +190,11 @@ class ApplicationEntrypoint:
         ctx = AppContext()
 
         args = self.user_input()
-        ctx.endpoint = args.endpoint
-        ctx.authority = AUTHORITY_FORMAT.format(args.tenant)
+        if args.endpoint:
+            ctx.endpoint = args.endpoint
+        if args.tenant:
+            ctx.authority = AUTHORITY_FORMAT.format(args.tenant)
+
         ctx.blocks = args.file_blocks
         local_file = args.local_file
 
