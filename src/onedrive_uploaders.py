@@ -67,36 +67,38 @@ class LargeFileOneDriveUploader(OneDriveUploader):
             upload_url = r.json()["uploadUrl"]
 
             chunk_start = 0
-            while True:
-                data = f.read(chunk_size)
-                if not data:
-                    print("no more data to read, breaking. Shouldn't get here...")
-                    break
-                chunk_end = chunk_start + chunk_size - 1
-                if chunk_end > last_byte:
-                    chunk_end = last_byte
+            try:
+                while True:
+                    data = f.read(chunk_size)
+                    if not data:
+                        print("no more data to read, breaking. Shouldn't get here...")
+                        break
+                    chunk_end = chunk_start + chunk_size - 1
+                    if chunk_end > last_byte:
+                        chunk_end = last_byte
 
-                send_range = f"bytes {chunk_start}-{chunk_end}/{total_size}"
-                send_bytes = chunk_end - chunk_start + 1
-                headers = {
-                    "Content-Length":f"{send_bytes}",
-                    "Content-Range": send_range
-                }
-                done_percentage = round(100 * chunk_start / total_size, 2)
-                print(f"{done_percentage}% done. Sending {send_bytes} bytes: {send_range}")
-                sys.stdout.flush()
-                r = requests.put(upload_url, data=data, headers=headers)
+                    send_range = f"bytes {chunk_start}-{chunk_end}/{total_size}"
+                    send_bytes = chunk_end - chunk_start + 1
+                    headers = {
+                        "Content-Length":f"{send_bytes}",
+                        "Content-Range": send_range
+                    }
+                    done_percentage = round(100 * chunk_start / total_size, 2)
+                    print(f"{done_percentage}% done. Sending {send_bytes} bytes: {send_range}")
+                    sys.stdout.flush()
+                    r = requests.put(upload_url, data=data, headers=headers)
 
-                if r.status_code in [200, 201]:
-                    print(f"{f.name} was uploaded successfully in {time.time() - start_time} seconds!")
-                    break
-                elif r.status_code != 202:
-                    print("Unexpected response code...")
-                    self.dump_request_result(r)
+                    if r.status_code in [200, 201]:
+                        print(f"{f.name} was uploaded successfully in {time.time() - start_time} seconds!")
+                        break
+                    elif r.status_code != 202:
+                        print("Unexpected response code...")
+                        self.dump_request_result(r)
+                        raise ValueError("Upload failed: unexpected status code")
 
-                    print("Terminating upload session")
-                    r = requests.delete(upload_url)
-                    self.dump_request_result(r)
-                    raise ValueError("Upload failed")
-
-                chunk_start = chunk_end + 1
+                    chunk_start = chunk_end + 1
+            except:
+                print("An error occurred, terminating upload session")
+                r = requests.delete(upload_url)
+                self.dump_request_result(r)
+                raise
